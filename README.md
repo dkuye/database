@@ -3,7 +3,7 @@ Gorm ORM Database connector for all supported RDMS.
 
 ## Installation
 ```bash
-go get github.com/dkuye/helper
+go get github.com/dkuye/database
 ```
 ## Usage
 First you need to have the following in your .env file for your project.
