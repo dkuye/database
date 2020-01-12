@@ -20,9 +20,9 @@ DB_PASSWORD=password
 package main
 
 import (
-    "fmt"
     "github.com/dkuye/database"
     "github.com/joho/godotenv"
+    "log"
 )
 
 func main(){
