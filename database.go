@@ -1,12 +1,13 @@
 package database
 
 import (
+	"log"
+	"os"
+
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mssql"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
-	"log"
-	"os"
 )
 
 /*
@@ -27,7 +28,7 @@ func Connect() *gorm.DB {
 
 	connectionString := ""
 	if dialect == "mysql" {
-		connectionString = username + ":" + password + "@(" + host + ":" + port + ")/" + name + "?charset=utf8&parseTime=True&loc=Local"
+		connectionString = username + ":" + password + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
 	} else if dialect == "mssql" {
 		connectionString = "sqlserver://" + username + ":" + password + "@" + host + ":" + port + "?database=" + name
 	} else if dialect == "postgres" {
