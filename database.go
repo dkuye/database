@@ -1,86 +1,97 @@
 package database
 
 import (
+	"fmt"
+	"log"
 	"os"
 
-	log "github.com/sirupsen/logrus"
-
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mssql"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlserver"
+	"gorm.io/gorm"
 )
 
-/*
- * database.Connect
- * SQLite NOT SUPPORTED
- * You must have .env file in your project
- * that have keys below
- */
+var (
+	DBConnect *gorm.DB
+)
 
-// DBConnect to database
-func Connect() *gorm.DB {
-	var dialect = os.Getenv("DB_CONNECTION") // mysql | mssql | postgres
+func Init() {
+	var dialect = os.Getenv("DB_CONNECTION") // mysql | sqlserver | postgres
 	var host = os.Getenv("DB_HOST")
 	var port = os.Getenv("DB_PORT")
 	var name = os.Getenv("DB_DATABASE")
 	var username = os.Getenv("DB_USERNAME")
 	var password = os.Getenv("DB_PASSWORD")
+	// Other optional parameters
+	var timezone = os.Getenv("TIME_ZONE")
+	// for mysql only
+	var charset = os.Getenv("CHAR_SET")
+	var parseTime = os.Getenv("PARSE_TIME")
+	// for postgres only
+	var sslmode = os.Getenv("SSL_MODE")
+	// error variable
+	var err error
 
-	connectionString := ""
-	if dialect == "mysql" {
-		connectionString = username + ":" + password + "@tcp(" + host + ":" + port + ")/" + name + "?charset=utf8mb4&parseTime=True&loc=Local"
-	} else if dialect == "mssql" {
-		connectionString = "sqlserver://" + username + ":" + password + "@" + host + ":" + port + "?database=" + name
-	} else if dialect == "postgres" {
-		connectionString = "host=" + host + " port=" + port + " user=" + username + " dbname=" + name + " password=" + password + " sslmode=disable"
+	// Set default value for optional parameters
+	if timezone == "" {
+		timezone = "Africa/Lagos"
+	}
+	if charset == "" {
+		charset = "utf8mb4"
+	}
+	if parseTime == "" {
+		parseTime = "True"
+	}
+	if sslmode == "" {
+		sslmode = "disable"
 	}
 
-	database, err := gorm.Open(dialect, connectionString)
+	// set connection for database
+	if dialect == "mysql" {
+		DBConnect, err = mysqlConnection(username, password, host, port, name, charset, parseTime, timezone)
+	} else if dialect == "sqlserver" {
+		DBConnect, err = sqlserverConnection(username, password, host, port, name)
+	} else if dialect == "postgres" {
+		DBConnect, err = postgresConnection(host, username, password, name, port, sslmode, timezone)
+	}
+
 	if err != nil {
-		log.Println("\nUnable to connect to database ...")
-		log.Println("DETAILS: ")
-		log.Println(err)
+		log.Printf("Unable to connect to database ...\nDETAILS: \n%v", err)
 		os.Exit(1)
 	}
-
-	database.SetLogger(&GormLogger{})
-	database.LogMode(true)
-
-	return database
 }
 
-// Using logrus and gorm
-// GormLogger is a custom logger for Gorm, making it use logrus.
-type GormLogger struct{}
+// mysqlConnection connect to mysql or maria database
+func mysqlConnection(username, password, host, port, name, charset, parseTime, timezone string) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=%s&loc=%s", username, password, host, port, name, charset, parseTime, timezone)
 
-/* func (*GormLogger) Print(v ...interface{}) {
-    if v[0] == "sql" {
-        log.WithFields(log.Fields{"module": "gorm", "type": "sql"}).Print(v[3])
-    }
-    if v[0] == "log" {
-        log.WithFields(log.Fields{"module": "gorm", "type": "log"}).Print(v[2])
-    }
-} */
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:               dsn, // data source name
+		DefaultStringSize: 255, // default size for string fields
+	}), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
 
-/*
-Nice!
-Slight variation I made:
-*/
-// Print handles log events from Gorm for the custom logger.
-func (*GormLogger) Print(v ...interface{}) {
-	switch v[0] {
-	case "sql":
-		log.WithFields(
-			log.Fields{
-				"module":  "gorm",
-				"type":    "sql",
-				"rows":    v[5],
-				"src_ref": v[1],
-				"values":  v[4],
-			},
-		).Debug(v[3])
-	case "log":
-		log.WithFields(log.Fields{"module": "gorm", "type": "log"}).Print(v[2])
-	}
+	return db, err
+}
+
+// sqlserverConnection connect to microsoft sqlserver database
+func sqlserverConnection(username, password, host, port, name string) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%s?database=%s", username, password, host, port, name) // sqlserver://username:password@host:port?database=name
+
+	db, err := gorm.Open(sqlserver.Open(dsn), &gorm.Config{})
+
+	return db, err
+}
+
+// postgresConnection connect to postgres database
+func postgresConnection(host, username, password, name, port, sslmode, timezone string) (*gorm.DB, error) {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s", host, username, password, name, port, sslmode, timezone) // data source name
+
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,  // data source name
+		PreferSimpleProtocol: true, // disables implicit prepared statement usage
+	}), &gorm.Config{})
+
+	return db, err
 }
